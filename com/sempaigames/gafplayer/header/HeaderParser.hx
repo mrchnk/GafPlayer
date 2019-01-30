@@ -6,6 +6,7 @@ import haxe.zip.InflateImpl;
 import openfl.Assets;
 import openfl.utils.ByteArray;
 import openfl.utils.Endian;
+import openfl.utils.CompressionAlgorithm;
 
 class HeaderParser {
 
@@ -15,7 +16,10 @@ class HeaderParser {
 
 		bytes.endian = Endian.LITTLE_ENDIAN;
 		var footprint = bytes.readUnsignedInt();
+
 		var valid = (footprint == 0x00474146) || (footprint == 0x00474143);
+		if (!valid) throw "Data is not a valid GAF file";
+
 		var compressed = (footprint == 0x00474143);
 
 		header.majorVersion = bytes.readUnsignedByte();
@@ -25,17 +29,18 @@ class HeaderParser {
 
 		var headerEnd = new ByteArray();
 		headerEnd.endian = Endian.LITTLE_ENDIAN;
-		while (bytes.bytesAvailable>0) {
-			headerEnd.writeByte(bytes.readByte());
-		}
+		bytes.readBytes(headerEnd, 0, bytes.bytesAvailable);
 		if (compressed) {
-			headerEnd.uncompress();
+			headerEnd.uncompress(CompressionAlgorithm.ZLIB);
+		}
+		if (headerEnd.length != fileLength) {
+			throw "Data is corrupted";
 		}
 
 		if (header.majorVersion>=4) {
 			readHeaderEndV4(headerEnd, header);
 		} else {
-			throw "Implement";
+			throw "Older GAF format is not implemented";
 		}
 
 		return { header : header, body : headerEnd };
